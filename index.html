@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Virtual Piano</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: linear-gradient(45deg, #1a1a1a, #4a4a4a);
+            font-family: Arial, sans-serif;
+        }
+
+        .piano-container {
+            background: #272727;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+        }
+
+        .piano {
+            display: flex;
+            position: relative;
+        }
+
+        .key {
+            position: relative;
+            cursor: pointer;
+            transition: all 0.1s ease;
+        }
+
+        .white-key {
+            width: 60px;
+            height: 200px;
+            background: linear-gradient(to bottom, #fff 0%, #eee 100%);
+            border: 1px solid #ccc;
+            border-radius: 0 0 5px 5px;
+        }
+
+        .black-key {
+            position: absolute;
+            width: 40px;
+            height: 120px;
+            background: linear-gradient(to bottom, #333 0%, #000 100%);
+            border-radius: 0 0 3px 3px;
+            z-index: 1;
+        }
+
+        .key.active {
+            transform: translateY(2px);
+            background: #7fb2ff;
+        }
+
+        .white-key.active {
+            background: linear-gradient(to bottom, #7fb2ff 0%, #5c9eff 100%);
+        }
+
+        .black-key.active {
+            background: linear-gradient(to bottom, #4a90e2 0%, #357abd 100%);
+        }
+
+        .key-label {
+            position: absolute;
+            bottom: 10px;
+            width: 100%;
+            text-align: center;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .black-key .key-label {
+            color: #fff;
+        }
+
+        .instructions {
+            color: #fff;
+            margin: 20px;
+            text-align: center;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="instructions">
+        <h2>Virtual Piano</h2>
+        <p>Use keyboard keys (A-K) or touch the piano keys to play</p>
+    </div>
+    <div class="piano-container">
+        <div class="piano" id="piano"></div>
+    </div>
+
+    <script>
+        class PianoGame {
+            constructor() {
+                this.pianoKeys = [
+                    { note: 'C', key: 'A', isBlack: false },
+                    { note: 'C#', key: 'W', isBlack: true },
+                    { note: 'D', key: 'S', isBlack: false },
+                    { note: 'D#', key: 'E', isBlack: true },
+                    { note: 'E', key: 'D', isBlack: false },
+                    { note: 'F', key: 'F', isBlack: false },
+                    { note: 'F#', key: 'T', isBlack: true },
+                    { note: 'G', key: 'G', isBlack: false },
+                    { note: 'G#', key: 'Y', isBlack: true },
+                    { note: 'A', key: 'H', isBlack: false },
+                    { note: 'A#', key: 'U', isBlack: true },
+                    { note: 'B', key: 'J', isBlack: false },
+                ];
+                
+                this.init();
+            }
+
+            init() {
+                this.createPiano();
+                this.setupEventListeners();
+                this.loadSounds();
+            }
+
+            createPiano() {
+                const piano = document.getElementById('piano');
+                let whiteKeyIndex = 0;
+
+                this.pianoKeys.forEach((key, index) => {
+                    const keyElement = document.createElement('div');
+                    keyElement.className = `key ${key.isBlack ? 'black-key' : 'white-key'}`;
+                    keyElement.dataset.note = key.note;
+                    keyElement.dataset.key = key.key;
+
+                    const keyLabel = document.createElement('div');
+                    keyLabel.className = 'key-label';
+                    keyLabel.textContent = key.key;
+                    keyElement.appendChild(keyLabel);
+
+                    if (key.isBlack) {
+                        keyElement.style.left = `${whiteKeyIndex * 60 - 20}px`;
+                    } else {
+                        keyElement.style.left = `${whiteKeyIndex * 60}px`;
+                        whiteKeyIndex++;
+                    }
+
+                    piano.appendChild(keyElement);
+                });
+            }
+
+            loadSounds() {
+                this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                this.sounds = {};
+                
+                this.pianoKeys.forEach(key => {
+                    const note = key.note.replace('#', 's');
+                    const oscillator = this.audioContext.createOscillator();
+                    const gainNode = this.audioContext.createGain();
+                    
+                    oscillator.connect(gainNode);
+                    gainNode.connect(this.audioContext.destination);
+                    
+                    const frequency = this.getNoteFrequency(key.note);
+                    oscillator.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
+                    
+                    this.sounds[key.note] = { oscillator, gainNode };
+                });
+            }
+
+            getNoteFrequency(note) {
+                const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+                const octave = 4;
+                const baseFrequency = 440; // A4 frequency
+                const baseNote = 'A';
+                const baseOctave = 4;
+                
+                const semitones = notes.indexOf(note) - notes.indexOf(baseNote) + 
+                                (octave - baseOctave) * 12;
+                
+                return baseFrequency * Math.pow(2, semitones / 12);
+            }
+
+            playNote(note) {
+                if (this.sounds[note]) {
+                    const { oscillator, gainNode } = this.sounds[note];
+                    oscillator.start();
+                    gainNode.gain.setValueAtTime(0.5, this.audioContext.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.5);
+                    setTimeout(() => oscillator.stop(), 500);
+                    this.loadSounds(); // Reload sound for next play
+                }
+            }
+
+            setupEventListeners() {
+                // Keyboard events
+                document.addEventListener('keydown', (e) => {
+                    const key = e.key.toUpperCase();
+                    const pianoKey = this.pianoKeys.find(k => k.key === key);
+                    if (pianoKey) {
+                        this.playNote(pianoKey.note);
+                        this.toggleKeyActive(pianoKey.note, true);
+                    }
+                });
+
+                document.addEventListener('keyup', (e) => {
+                    const key = e.key.toUpperCase();
+                    const pianoKey = this.pianoKeys.find(k => k.key === key);
+                    if (pianoKey) {
+                        this.toggleKeyActive(pianoKey.note, false);
+                    }
+                });
+
+                // Touch/Click events
+                const piano = document.getElementById('piano');
+                piano.addEventListener('mousedown', (e) => {
+                    if (e.target.classList.contains('key')) {
+                        const note = e.target.dataset.note;
+                        this.playNote(note);
+                        this.toggleKeyActive(note, true);
+                    }
+                });
+
+                piano.addEventListener('mouseup', (e) => { (e.target.classList.contains('key')) {
+                        const note = e.target.dataset.note;
+                        this.toggleKeyActive(note, false);
+                    }
+                });
+
+                // Touch events for mobile
+                piano.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    if (e.target.classList.contains('key')) {
+                        const note = e.target.dataset.note;
+                        this.playNote(note);
+                        this.toggleKeyActive(note, true);
+                    }
+                });
+
+                piano.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    if (e.target.classList.contains('key')) {
+                        const note = e.target.dataset.note;
+                        this.toggleKeyActive(note, false);
+                    }
+                });
+            }
+
+            toggleKeyActive(note, active) {
+                const keyElement = document.querySelector(`[data-note="${note}"]`);
+                if (keyElement) {
+                    if (active) {
+                        keyElement.classList.add('active');
+                    } else {
+                        keyElement.classList.remove('active');
+                    }
+                }
+            }
+        }
+
+        // Initialize the piano game when the page loads
+        window.addEventListener('load', () => {
+            new PianoGame();
+        });
+    </script>
+</body>
+</html>
